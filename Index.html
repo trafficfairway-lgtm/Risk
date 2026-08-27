@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Risk - Global Domination</title>
+    <style>
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: monospace;
+            padding: 15px;
+            margin: 0;
+            line-height: 1.4;
+        }
+        h1, h2, h3 {
+            color: #ffffff;
+            border-bottom: 1px solid #ffffff;
+            padding-bottom: 5px;
+        }
+        button {
+            background-color: #000000;
+            color: #ffffff;
+            border: 2px solid #ffffff;
+            padding: 10px 15px;
+            font-family: monospace;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px 0;
+            display: inline-block;
+        }
+        button:hover {
+            background-color: #ffffff;
+            color: #000000;
+        }
+        select, input {
+            background-color: #000000;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        .card {
+            border: 1px solid #ffffff;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .continent-box {
+            border-left: 3px solid #ffffff;
+            padding-left: 10px;
+            margin: 10px 0;
+        }
+        .territory-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px dashed #333333;
+        }
+        .log-box {
+            background-color: #111111;
+            border: 1px solid #ffffff;
+            padding: 10px;
+            height: 150px;
+            overflow-y: scroll;
+            font-size: 14px;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>TEXT RISK</h1>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="card">
+        <h2>Game Setup</h2>
+        <label>Number of Players (2-6):</label><br>
+        <select id="player-count">
+            <option value="2">2 Players</option>
+            <option value="3">3 Players</option>
+            <option value="4">4 Players</option>
+            <option value="5">5 Players</option>
+            <option value="6">6 Players</option>
+        </select><br><br>
+        <div id="player-names-inputs">
+            <label>Player 1 Initial (e.g., S):</label> <input type="text" id="p0" value="S" maxlength="2"><br>
+            <label>Player 2 Initial (e.g., F):</label> <input type="text" id="p1" value="F" maxlength="2"><br>
+        </div>
+        <br>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <!-- GAMEPLAY SCREEN -->
+    <div id="game-screen" class="hidden">
+        <div class="card">
+            <h2 id="turn-info">Turn Info</h2>
+            <p id="phase-info">Phase: Reinforce</p>
+            <div id="action-area"></div>
+        </div>
+
+        <div class="card">
+            <h2>Battle Log</h2>
+            <div id="game-log" class="log-box"></div>
+        </div>
+
+        <div class="card">
+            <h2>World Map (Continents & Territories)</h2>
+            <div id="map-display"></div>
+        </div>
+    </div>
+
+<script>
+// Classic Risk Data Structure
+const continentsData = {
+    "North America": { bonus: 5, territories: ["Alaska", "Northwest Territory", "Greenland", "Alberta", "Ontario", "Quebec", "Western US", "Eastern US", "Central America"] },
+    "South America": { bonus: 2, territories: ["Venezuela", "Peru", "Brazil", "Argentina"] },
+    "Europe": { bonus: 5, territories: ["Iceland", "Great Britain", "Western Europe", "Northern Europe", "Southern Europe", "Scandinavia", "Ukraine"] },
+    "Africa": { bonus: 3, territories: ["North Africa", "Egypt", "East Africa", "Congo", "South Africa", "Madagascar"] },
+    "Asia": { bonus: 7, territories: ["Ural", "Siberia", "Yakutsk", "Kamchatka", "Afghanistan", "China", "India", "Middle East", "Japan", "Mongolia", "Irkutsk", "Siam"] },
+    "Australia": { bonus: 2, territories: ["Indonesia", "New Guinea", "Western Australia", "Eastern Australia"] }
+};
+
+const connections = {
+    "Alaska": ["Northwest Territory", "Alberta", "Kamchatka"],
+    "Northwest Territory": ["Alaska", "Alberta", "Ontario", "Greenland"],
+    "Greenland": ["Northwest Territory", "Ontario", "Quebec", "Iceland"],
+    "Alberta": ["Alaska", "Northwest Territory", "Ontario", "Western US"],
+    "Ontario": ["Northwest Territory", "Alberta", "Quebec", "Western US", "Eastern US", "Greenland"],
+    "Quebec": ["Ontario", "Eastern US", "Greenland"],
+    "Western US": ["Alberta", "Ontario", "Eastern US", "Central America"],
+    "Eastern US": ["Quebec", "Ontario", "Western US", "Central America"],
+    "Central America": ["Western US", "Eastern US", "Venezuela"],
+    
+    "Venezuela": ["Central America", "Peru", "Brazil"],
+    "Peru": ["Venezuela", "Brazil", "Argentina"],
+    "Brazil": ["Venezuela", "Peru", "North Africa", "Argentina"],
+    "Argentina": ["Peru", "Brazil"],
+
+    "Iceland": ["Greenland", "Great Britain", "Scandinavia"],
+    "Great Britain": ["Iceland", "Scandinavia", "Northern Europe", "Western Europe"],
+    "Western Europe": ["Great Britain", "Northern Europe", "Southern Europe", "North Africa"],
+    "Northern Europe": ["Great Britain", "Iceland", "Western Europe", "Southern Europe", "Ukraine"],
+    "Southern Europe": ["Western Europe", "Northern Europe", "Ukraine", "North Africa", "Egypt"],
+    "Scandinavia": ["Iceland", "Great Britain", "Northern Europe", "Ukraine"],
+    "Ukraine": ["Scandinavia", "Northern Europe", "Southern Europe", "Ural", "Afghanistan", "Middle East"],
+
+    "North Africa": ["Western Europe", "Southern Europe", "Egypt", "East Africa", "Congo", "Brazil"],
+    "Egypt": ["North Africa", "Southern Europe", "East Africa", "Middle East"],
+    "East Africa": ["Egypt", "North Africa", "Congo", "South Africa", "Madagascar", "Middle East"],
+    "Congo": ["North Africa", "East Africa", "South Africa"],
+    "South Africa": ["Congo", "East Africa", "Madagascar"],
+    "Madagascar": ["East Africa", "South Africa"],
+
+    "Ural": ["Ukraine", "Siberia", "Afghanistan", "China"],
+    "Siberia": ["Ural", "Yakutsk", "Irkutsk", "Mongolia", "China"],
+    "Yakutsk": ["Siberia", "Irkutsk", "Kamchatka"],
+    "Kamchatka": ["Yakutsk", "Irkutsk", "Japan", "Alaska"],
+    "Afghanistan": ["Ukraine", "Ural", "China", "India", "Middle East"],
+    "China": ["Ural", "Siberia", "Mongolia", "Siam", "India", "Afghanistan"],
+    "India": ["Afghanistan", "China", "Siam", "Middle East"],
+    "Middle East": ["Ukraine", "Southern Europe", "Egypt", "East Africa", "Afghanistan", "India"],
+    "Japan": ["Kamchatka", "Mongolia"],
+    "Mongolia": ["Siberia", "Irkutsk", "Japan", "China", "Kamchatka"],
+    "Irkutsk": ["Siberia", "Yakutsk", "Kamchatka", "Mongolia"],
+    "Siam": ["China", "India", "Indonesia"],
+
+    "Indonesia": ["Siam", "New Guinea", "Western Australia"],
+    "New Guinea": ["Indonesia", "Eastern Australia"],
+    "Western Australia": ["Indonesia", "Eastern Australia"],
+    "Eastern Australia": ["Western Australia", "New Guinea"]
+};
+
+let gameState = {
+    players: [],
+    currentTurn: 0,
+    phase: 'reinforce', // reinforce, attack, fortify
+    territories: {}, // name -> { owner: initial, armies: count }
+    reinforcementsLeft: 0
+};
+
+// Dynamic player input fields based on dropdown selector
+document.getElementById('player-count').addEventListener('change', function() {
+    let count = parseInt(this.value);
+    let html = '';
+    let defaultInitials = ['S', 'F', 'J', 'B', 'M', 'K'];
+    for(let i = 0; i < count; i++) {
+        html += `<label>Player ${i+1} Initial:</label> <input type="text" id="p${i}" value="${defaultInitials[i]}" maxlength="2"><br>`;
+    }
+    document.getElementById('player-names-inputs').innerHTML = html;
+});
+
+function startGame() {
+    let count = parseInt(document.getElementById('player-count').value);
+    gameState.players = [];
+    for(let i = 0; i < count; i++) {
+        let val = document.getElementById(`p${i}`).value.trim() || `P${i+1}`;
+        gameState.players.push(val);
+    }
+
+    // Initialize Territories randomly among players
+    let allTerritories = [];
+    for(let cont in continentsData) {
+        allTerritories.push(...continentsData[cont]);
+    }
+    
+    // Shuffle territories
+    allTerritories.sort(() => Math.random() - 0.5);
+
+    let startingArmies = { 2: 40, 3: 35, 4: 30, 5: 25, 6: 20 }[count];
+
+    allTerritories.forEach((t, index) => {
+        let owner = gameState.players[index % gameState.players.length];
+        gameState.territories[t] = { owner: owner, armies: 1 };
+    });
+
+    // Distribute remaining starting armies
+    let assignedCount = allTerritories.length;
+    let totalPool = startingArmies * count;
+    let remainingPool = totalPool - assignedCount;
+
+    let pIndex = 0;
+    while(remainingPool > 0) {
+        let terrsOwned = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === gameState.players[pIndex]);
+        if(terrsOwned.length > 0) {
+            let randomTerr = terrsOwned[Math.floor(Math.random() * terrsOwned.length)];
+            gameState.territories[randomTerr].armies++;
+            remainingPool--;
+        }
+        pIndex = (pIndex + 1) % count;
+    }
+
+    document.getElementById('setup-screen').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+
+    startTurn();
+}
+
+function logMessage(msg) {
+    let box = document.getElementById('game-log');
+    box.innerHTML += `<div>> ${msg}</div>`;
+    box.scrollTop = box.scrollHeight;
+}
+
+function startTurn() {
+    let currentPlayer = gameState.players[gameState.currentTurn];
+    gameState.phase = 'reinforce';
+
+    // Calculate reinforcements: territories / 3 (min 3) + continent bonuses
+    let ownedTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer);
+    let countBonus = Math.max(3, Math.floor(ownedTerrs.length / 3));
+
+    let continentBonus = 0;
+    for(let cont in continentsData) {
+        let fullCont = continentsData[cont].every(t => gameState.territories[t].owner === currentPlayer);
+        if(fullCont) {
+            continentBonus += continentsData[cont].bonus;
+        }
+    }
+
+    gameState.reinforcementsLeft = countBonus + continentBonus;
+    logMessage(`--- Turn Started: Player [${currentPlayer}] ---`);
+    logMessage(`Earned ${countBonus} (territories) + ${continentBonus} (continents) = ${gameState.reinforcementsLeft} new armies.`);
+
+    updateUI();
+}
+
+function updateUI() {
+    let currentPlayer = gameState.players[gameState.currentTurn];
+    document.getElementById('turn-info').innerText = `Current Player: [${currentPlayer}]`;
+    document.getElementById('phase-info').innerText = `Phase: ${gameState.phase.toUpperCase()}`;
+
+    let actionArea = document.getElementById('action-area');
+    actionArea.innerHTML = '';
+
+    if(gameState.phase === 'reinforce') {
+        actionArea.innerHTML = `
+            <p>Armies to place: <strong>${gameState.reinforcementsLeft}</strong></p>
+            <label>Target Territory:</label><br>
+            <select id="ref-terr">
+                ${Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer).map(t => `<option value="${t}">${t} (${gameState.territories[t].armies} armies)</option>`).join('')}
+            </select><br>
+            <label>Amount:</label><br>
+            <input type="number" id="ref-amt" value="1" min="1" max="${gameState.reinforcementsLeft}"><br><br>
+            <button onclick="executeReinforce()">Deploy Armies</button>
+        `;
+    } else if(gameState.phase === 'attack') {
+        let myTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer && gameState.territories[t].armies > 1);
+        
+        actionArea.innerHTML = `
+            <p>Select your attacking territory (must have > 1 army) and an adjacent enemy territory.</p>
+            <label>Attack From:</label><br>
+            <select id="atk-from" onchange="updateAttackTargets()">
+                ${myTerrs.map(t => `<option value="${t}">${t} (${gameState.territories[t].armies} armies)</option>`).join('')}
+            </select><br>
+            <label>Attack Enemy Target:</label><br>
+            <select id="atk-to"></select><br><br>
+            <button onclick="executeAttack()">Launch Attack</button><br><br>
+            <button onclick="endAttackPhase()">Finish Attacks / Go to Fortify</button>
+        `;
+        // Trigger population of targets for default selection
+        setTimeout(updateAttackTargets, 50);
+    } else if(gameState.phase === 'fortify') {
+        let myTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer && gameState.territories[t].armies > 1);
+        
+        actionArea.innerHTML = `
+            <p>Move armies between connected territories you own, then end turn.</p>
+            <label>From:</label><br>
+            <select id="fort-from">
+                ${myTerrs.map(t => `<option value="${t}">${t} (${gameState.territories[t].armies})</option>`).join('')}
+            </select><br>
+            <label>To (Connected):</label><br>
+            <select id="fort-to">
+                ${Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer).map(t => `<option value="${t}">${t}</option>`).join('')}
+            </select><br>
+            <label>Armies to Move:</label><br>
+            <input type="number" id="fort-amt" value="1" min="1"><br><br>
+            <button onclick="executeFortify()">Move & End Turn</button><br><br>
+            <button onclick="endTurn()">Skip Fortify / End Turn</button>
+        `;
+    }
+
+    // Render Map Details grouped by Continent
+    let mapHtml = '';
+    for(let cont in continentsData) {
+        mapHtml += `<div class="continent-box"><h3>${cont} (Bonus: +${continentsData[cont].bonus})</h3>`;
+        continentsData[cont].territories.forEach(t => {
+            let data = gameState.territories[t];
+            mapHtml += `<div class="territory-row"><span>${t}</span><span>Owner: [${data.owner}] | Armies: ${data.armies}</span></div>`;
+        });
+        mapHtml += `</div>`;
+    }
+    document.getElementById('map-display').innerHTML = mapHtml;
+}
+
+function executeReinforce() {
+    let terr = document.getElementById('ref-terr').value;
+    let amt = parseInt(document.getElementById('ref-amt').value);
+
+    if(amt > 0 && amt <= gameState.reinforcementsLeft) {
+        gameState.territories[terr].armies += amt;
+        gameState.reinforcementsLeft -= amt;
+        logMessage(`Player [${gameState.players[gameState.currentTurn]}] placed ${amt} armies in ${terr}.`);
+
+        if(gameState.reinforcementsLeft === 0) {
+            gameState.phase = 'attack';
+            logMessage(`Phase changed to ATTACK.`);
+        }
+        updateUI();
+    }
+}
+
+function updateAttackTargets() {
+    let fromTerr = document.getElementById('atk-from').value;
+    let targetSelect = document.getElementById('atk-to');
+    if(!fromTerr || !targetSelect) return;
+
+    let currentPlayer = gameState.players[gameState.currentTurn];
+    let neighbors = connections[fromTerr] || [];
+    let validEnemies = neighbors.filter(n => gameState.territories[n].owner !== currentPlayer);
+
+    targetSelect.innerHTML = validEnemies.map(n => `<option value="${n}">${n} (Owner: [${gameState.territories[n].owner}], Armies: ${gameState.territories[n].armies})</option>`).join('');
+}
+
+function executeAttack() {
+    let from = document.getElementById('atk-from').value;
+    let to = document.getElementById('atk-to').value;
+
+    if(!from || !to) {
+        alert("Please select valid attack paths.");
+        return;
+    }
+
+    let attackerArmies = gameState.territories[from].armies;
+    let defenderArmies = gameState.territories[to].armies;
+
+    if(attackerArmies < 2) {
+        alert("You need at least 2 armies in the source territory to attack!");
+        return;
+    }
+
+    // Simple automated dice resolution for speed & accessibility
+    let atkDice = Math.min(3, attackerArmies - 1);
+    let defDice = Math.min(2, defenderArmies);
+
+    let atkRolls = [];
+    for(let i=0; i<atkDice; i++) atkRolls.push(Math.floor(Math.random() * 6) + 1);
+    let defRolls = [];
+    for(let i=0; i<defDice; i++) defRolls.push(Math.floor(Math.random() * 6) + 1);
+
+    atkRolls.sort((a,b) => b-a);
+    defRolls.sort((a,b) => b-a);
+
+    let atkLoss = 0;
+    let defLoss = 0;
+
+    for(let i=0; i<Math.min(atkRolls.length, defRolls.length); i++) {
+        if(atkRolls[i] > defRolls[i]) {
+            defLoss++;
+        } else {
+            atkLoss++;
+        }
+    }
+
+    gameState.territories[from].armies -= atkLoss;
+    gameState.territories[to].armies -= defLoss;
+
+    logMessage(`BATTLE: ${from} (Attacker) attacked ${to} (Defender).`);
+    logMessage(`Attacker rolls [${atkRolls.join(', ')}] vs Defender rolls [${defRolls.join(', ')}]`);
+    logMessage(`Result: Attacker lost ${atkLoss}, Defender lost ${defLoss} armies.`);
+
+    // Check if territory captured
+    if(gameState.territories[to].armies <= 0) {
+        let previousOwner = gameState.territories[to].owner;
+        let currentPlayer = gameState.players[gameState.currentTurn];
+        gameState.territories[to].owner = currentPlayer;
+        
+        // Move half attacking stack over
+        let movingArmies = Math.floor(gameState.territories[from].armies / 2);
+        gameState.territories[from].armies -= movingArmies;
+        gameState.territories[to].armies = movingArmies;
+
+        logMessage(`CONQUERED! Player [${currentPlayer}] captured ${to} from [${previousOwner}] and moved ${movingArmies} armies in!`);
+
+        // Check win condition
+        let totalTerritories = Object.keys(gameState.territories).length;
+        let playerTerritories = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer).length;
+        if(playerTerritories === totalTerritories) {
+            alert(`Player [${currentPlayer}] has conquered the entire world and wins the game!`);
+            location.reload();
+        }
+    }
+
+    updateUI();
+}
+
+function endAttackPhase() {
+    gameState.phase = 'fortify';
+    logMessage(`Phase changed to FORTIFY.`);
+    updateUI();
+}
+
+function executeFortify() {
+    let from = document.getElementById('fort-from').value;
+    let to = document.getElementById('fort-to').value;
+    let amt = parseInt(document.getElementById('fort-amt').value);
+
+    let currentPlayer = gameState.players[gameState.currentTurn];
+
+    if(from && to && gameState.territories[from].owner === currentPlayer && gameState.territories[to].owner === currentPlayer) {
+        // Simple check if they are in connections list
+        if(connections[from] && connections[from].includes(to)) {
+            if(gameState.territories[from].armies > amt) {
+                gameState.territories[from].armies -= amt;
+                gameState.territories[to].armies += amt;
+                logMessage(`Fortified ${amt} armies from ${from} to ${to}.`);
+            } else {
+                alert("Not enough armies to leave behind in source territory!");
+                return;
+            }
+        } else {
+            alert("Territories are not connected!");
+            return;
+        }
+    }
+    endTurn();
+}
+
+function endTurn() {
+    gameState.currentTurn = (gameState.currentTurn + 1) % gameState.players.length;
+    startTurn();
+}
+</script>
+
+</body>
+</html>
