@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text Risk - Global Domination</title>
+    <title>Text Risk - Graphical Map Edition</title>
     <style>
         body {
-            background-color: #000000;
-            color: #ffffff;
+            background-color: #0b0b0e;
+            color: #e0e0e0;
             font-family: monospace;
             padding: 15px;
             margin: 0;
@@ -15,13 +15,13 @@
         }
         h1, h2, h3 {
             color: #ffffff;
-            border-bottom: 1px solid #ffffff;
+            border-bottom: 1px solid #333;
             padding-bottom: 5px;
         }
         button {
-            background-color: #000000;
+            background-color: #1a1a24;
             color: #ffffff;
-            border: 2px solid #ffffff;
+            border: 2px solid #555;
             padding: 10px 15px;
             font-family: monospace;
             font-size: 16px;
@@ -34,44 +34,50 @@
             color: #000000;
         }
         select, input {
-            background-color: #000000;
+            background-color: #1a1a24;
             color: #ffffff;
-            border: 1px solid #ffffff;
+            border: 1px solid #555;
             padding: 8px;
             font-family: monospace;
             font-size: 16px;
             margin: 5px 0;
         }
         .card {
-            border: 1px solid #ffffff;
+            background-color: #121218;
+            border: 1px solid #333;
             padding: 15px;
             margin-bottom: 15px;
         }
-        .continent-box {
-            border-left: 3px solid #ffffff;
-            padding-left: 10px;
-            margin: 10px 0;
-        }
-        .territory-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            border-bottom: 1px dashed #333333;
-        }
         .log-box {
-            background-color: #111111;
-            border: 1px solid #ffffff;
+            background-color: #08080a;
+            border: 1px solid #333;
             padding: 10px;
-            height: 150px;
+            height: 130px;
             overflow-y: scroll;
-            font-size: 14px;
+            font-size: 13px;
         }
         .hidden { display: none; }
+        
+        /* SVG Map Styling */
+        #risk-svg-map {
+            width: 100%;
+            height: 500px;
+            background: #161622;
+            border: 1px solid #444;
+        }
+        .territory-node {
+            cursor: pointer;
+            transition: fill 0.2s;
+        }
+        .territory-node:hover {
+            stroke: #ffcc00;
+            stroke-width: 2px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>TEXT RISK</h1>
+    <h1>TEXT RISK: VISUAL EDITION</h1>
 
     <!-- SETUP SCREEN -->
     <div id="setup-screen" class="card">
@@ -101,25 +107,86 @@
         </div>
 
         <div class="card">
-            <h2>Battle Log</h2>
-            <div id="game-log" class="log-box"></div>
+            <h2>Interactive World Board</h2>
+            <p style="font-size: 12px; color: #aaa;">Nodes display Territory Name, Owner Initial, and Army Count.</p>
+            <svg id="risk-svg-map" viewBox="0 0 1000 500">
+                <!-- SVG map rendering container -->
+                <g id="map-connections"></g>
+                <g id="map-nodes"></g>
+            </svg>
         </div>
 
         <div class="card">
-            <h2>World Map (Continents & Territories)</h2>
-            <div id="map-display"></div>
+            <h2>Battle Log</h2>
+            <div id="game-log" class="log-box"></div>
         </div>
     </div>
 
 <script>
-// Classic Risk Data Structure
 const continentsData = {
-    "North America": { bonus: 5, territories: ["Alaska", "Northwest Territory", "Greenland", "Alberta", "Ontario", "Quebec", "Western US", "Eastern US", "Central America"] },
-    "South America": { bonus: 2, territories: ["Venezuela", "Peru", "Brazil", "Argentina"] },
-    "Europe": { bonus: 5, territories: ["Iceland", "Great Britain", "Western Europe", "Northern Europe", "Southern Europe", "Scandinavia", "Ukraine"] },
-    "Africa": { bonus: 3, territories: ["North Africa", "Egypt", "East Africa", "Congo", "South Africa", "Madagascar"] },
-    "Asia": { bonus: 7, territories: ["Ural", "Siberia", "Yakutsk", "Kamchatka", "Afghanistan", "China", "India", "Middle East", "Japan", "Mongolia", "Irkutsk", "Siam"] },
-    "Australia": { bonus: 2, territories: ["Indonesia", "New Guinea", "Western Australia", "Eastern Australia"] }
+    "North America": { bonus: 5, color: "#2c3e50", territories: ["Alaska", "Northwest Territory", "Greenland", "Alberta", "Ontario", "Quebec", "Western US", "Eastern US", "Central America"] },
+    "South America": { bonus: 2, color: "#27ae60", territories: ["Venezuela", "Peru", "Brazil", "Argentina"] },
+    "Europe": { bonus: 5, color: "#2980b9", territories: ["Iceland", "Great Britain", "Western Europe", "Northern Europe", "Southern Europe", "Scandinavia", "Ukraine"] },
+    "Africa": { bonus: 3, color: "#d35400", territories: ["North Africa", "Egypt", "East Africa", "Congo", "South Africa", "Madagascar"] },
+    "Asia": { bonus: 7, color: "#8e44ad", territories: ["Ural", "Siberia", "Yakutsk", "Kamchatka", "Afghanistan", "China", "India", "Middle East", "Japan", "Mongolia", "Irkutsk", "Siam"] },
+    "Australia": { bonus: 2, color: "#c0392b", territories: ["Indonesia", "New Guinea", "Western Australia", "Eastern Australia"] }
+};
+
+// Fixed coordinate map layout for visual nodes on the SVG grid
+const territoryCoords = {
+    // North America
+    "Alaska": {x: 80, y: 70, continent: "North America"},
+    "Northwest Territory": {x: 150, y: 70, continent: "North America"},
+    "Greenland": {x: 290, y: 60, continent: "North America"},
+    "Alberta": {x: 130, y: 120, continent: "North America"},
+    "Ontario": {x: 200, y: 120, continent: "North America"},
+    "Quebec": {x: 270, y: 120, continent: "North America"},
+    "Western US": {x: 130, y: 170, continent: "North America"},
+    "Eastern US": {x: 200, y: 170, continent: "North America"},
+    "Central America": {x: 150, y: 230, continent: "North America"},
+    
+    // South America
+    "Venezuela": {x: 200, y: 290, continent: "South America"},
+    "Peru": {x: 180, y: 360, continent: "South America"},
+    "Brazil": {x: 250, y: 340, continent: "South America"},
+    "Argentina": {x: 210, y: 430, continent: "South America"},
+
+    // Europe
+    "Iceland": {x: 430, y: 90, continent: "Europe"},
+    "Great Britain": {x: 430, y: 160, continent: "Europe"},
+    "Scandinavia": {x: 520, y: 80, continent: "Europe"},
+    "Western Europe": {x: 440, y: 220, continent: "Europe"},
+    "Northern Europe": {x: 510, y: 170, continent: "Europe"},
+    "Southern Europe": {x: 510, y: 230, continent: "Europe"},
+    "Ukraine": {x: 600, y: 130, continent: "Europe"},
+
+    // Africa
+    "North Africa": {x: 490, y: 310, continent: "Africa"},
+    "Egypt": {x: 570, y: 290, continent: "Africa"},
+    "East Africa": {x: 610, y: 360, continent: "Africa"},
+    "Congo": {x: 550, y: 410, continent: "Africa"},
+    "South Africa": {x: 570, y: 470, continent: "Africa"},
+    "Madagascar": {x: 650, y: 440, continent: "Africa"},
+
+    // Asia
+    "Ural": {x: 690, y: 100, continent: "Asia"},
+    "Siberia": {x: 770, y: 80, continent: "Asia"},
+    "Yakutsk": {x: 850, y: 60, continent: "Asia"},
+    "Kamchatka": {x: 930, y: 70, continent: "Asia"},
+    "Afghanistan": {x: 670, y: 180, continent: "Asia"},
+    "China": {x: 780, y: 200, continent: "Asia"},
+    "India": {x: 720, y: 270, continent: "Asia"},
+    "Middle East": {x: 630, y: 240, continent: "Asia"},
+    "Japan": {x: 910, y: 170, continent: "Asia"},
+    "Mongolia": {x: 830, y: 150, continent: "Asia"},
+    "Irkutsk": {x: 830, y: 110, continent: "Asia"},
+    "Siam": {x: 810, y: 280, continent: "Asia"},
+
+    // Australia
+    "Indonesia": {x: 830, y: 370, continent: "Australia"},
+    "New Guinea": {x: 920, y: 360, continent: "Australia"},
+    "Western Australia": {x: 860, y: 450, continent: "Australia"},
+    "Eastern Australia": {x: 930, y: 440, continent: "Australia"}
 };
 
 const connections = {
@@ -132,12 +199,10 @@ const connections = {
     "Western US": ["Alberta", "Ontario", "Eastern US", "Central America"],
     "Eastern US": ["Quebec", "Ontario", "Western US", "Central America"],
     "Central America": ["Western US", "Eastern US", "Venezuela"],
-    
     "Venezuela": ["Central America", "Peru", "Brazil"],
     "Peru": ["Venezuela", "Brazil", "Argentina"],
     "Brazil": ["Venezuela", "Peru", "North Africa", "Argentina"],
     "Argentina": ["Peru", "Brazil"],
-
     "Iceland": ["Greenland", "Great Britain", "Scandinavia"],
     "Great Britain": ["Iceland", "Scandinavia", "Northern Europe", "Western Europe"],
     "Western Europe": ["Great Britain", "Northern Europe", "Southern Europe", "North Africa"],
@@ -145,14 +210,12 @@ const connections = {
     "Southern Europe": ["Western Europe", "Northern Europe", "Ukraine", "North Africa", "Egypt"],
     "Scandinavia": ["Iceland", "Great Britain", "Northern Europe", "Ukraine"],
     "Ukraine": ["Scandinavia", "Northern Europe", "Southern Europe", "Ural", "Afghanistan", "Middle East"],
-
     "North Africa": ["Western Europe", "Southern Europe", "Egypt", "East Africa", "Congo", "Brazil"],
     "Egypt": ["North Africa", "Southern Europe", "East Africa", "Middle East"],
     "East Africa": ["Egypt", "North Africa", "Congo", "South Africa", "Madagascar", "Middle East"],
     "Congo": ["North Africa", "East Africa", "South Africa"],
     "South Africa": ["Congo", "East Africa", "Madagascar"],
     "Madagascar": ["East Africa", "South Africa"],
-
     "Ural": ["Ukraine", "Siberia", "Afghanistan", "China"],
     "Siberia": ["Ural", "Yakutsk", "Irkutsk", "Mongolia", "China"],
     "Yakutsk": ["Siberia", "Irkutsk", "Kamchatka"],
@@ -165,7 +228,6 @@ const connections = {
     "Mongolia": ["Siberia", "Irkutsk", "Japan", "China", "Kamchatka"],
     "Irkutsk": ["Siberia", "Yakutsk", "Kamchatka", "Mongolia"],
     "Siam": ["China", "India", "Indonesia"],
-
     "Indonesia": ["Siam", "New Guinea", "Western Australia"],
     "New Guinea": ["Indonesia", "Eastern Australia"],
     "Western Australia": ["Indonesia", "Eastern Australia"],
@@ -180,7 +242,6 @@ let gameState = {
     reinforcementsLeft: 0
 };
 
-// Dynamic player input fields based on dropdown selector
 document.getElementById('player-count').addEventListener('change', function() {
     let count = parseInt(this.value);
     let html = '';
@@ -199,15 +260,12 @@ function startGame() {
         gameState.players.push(val);
     }
 
-    // FIX: Access .territories array properly instead of pushing the whole continent object
     let allTerritories = [];
     for(let cont in continentsData) {
         allTerritories.push(...continentsData[cont].territories);
     }
     
-    // Shuffle territories
     allTerritories.sort(() => Math.random() - 0.5);
-
     let startingArmies = { 2: 40, 3: 35, 4: 30, 5: 25, 6: 20 }[count];
 
     allTerritories.forEach((t, index) => {
@@ -215,7 +273,6 @@ function startGame() {
         gameState.territories[t] = { owner: owner, armies: 1 };
     });
 
-    // Distribute remaining starting armies
     let assignedCount = allTerritories.length;
     let totalPool = startingArmies * count;
     let remainingPool = totalPool - assignedCount;
@@ -288,22 +345,22 @@ function updateUI() {
         let myTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer && gameState.territories[t].armies > 1);
         
         actionArea.innerHTML = `
-            <p>Select your attacking territory (must have > 1 army) and an adjacent enemy territory.</p>
+            <p>Select attacking territory (> 1 army) and adjacent target.</p>
             <label>Attack From:</label><br>
             <select id="atk-from" onchange="updateAttackTargets()">
                 ${myTerrs.map(t => `<option value="${t}">${t} (${gameState.territories[t].armies} armies)</option>`).join('')}
             </select><br>
-            <label>Attack Enemy Target:</label><br>
+            <label>Attack Target:</label><br>
             <select id="atk-to"></select><br><br>
-            <button onclick="executeAttack()">Launch Attack</button><br><br>
-            <button onclick="endAttackPhase()">Finish Attacks / Go to Fortify</button>
+            <button onclick="executeAttack()">Launch Attack</button>
+            <button onclick="endAttackPhase()">Finish Attacks / Fortify</button>
         `;
         setTimeout(updateAttackTargets, 50);
     } else if(gameState.phase === 'fortify') {
         let myTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer && gameState.territories[t].armies > 1);
         
         actionArea.innerHTML = `
-            <p>Move armies between connected territories you own, then end turn.</p>
+            <p>Move armies between connected territories you own.</p>
             <label>From:</label><br>
             <select id="fort-from">
                 ${myTerrs.map(t => `<option value="${t}">${t} (${gameState.territories[t].armies})</option>`).join('')}
@@ -312,24 +369,79 @@ function updateUI() {
             <select id="fort-to">
                 ${Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer).map(t => `<option value="${t}">${t}</option>`).join('')}
             </select><br>
-            <label>Armies to Move:</label><br>
+            <label>Armies:</label><br>
             <input type="number" id="fort-amt" value="1" min="1"><br><br>
-            <button onclick="executeFortify()">Move & End Turn</button><br><br>
-            <button onclick="endTurn()">Skip Fortify / End Turn</button>
+            <button onclick="executeFortify()">Move & End Turn</button>
+            <button onclick="endTurn()">Skip / End Turn</button>
         `;
     }
 
-    // Render Map Details grouped by Continent
-    let mapHtml = '';
-    for(let cont in continentsData) {
-        mapHtml += `<div class="continent-box"><h3>${cont} (Bonus: +${continentsData[cont].bonus})</h3>`;
-        continentsData[cont].territories.forEach(t => {
-            let data = gameState.territories[t];
-            mapHtml += `<div class="territory-row"><span>${t}</span><span>Owner: [${data.owner}] | Armies: ${data.armies}</span></div>`;
+    renderSvgMap();
+}
+
+function renderSvgMap() {
+    let connGroup = document.getElementById('map-connections');
+    let nodeGroup = document.getElementById('map-nodes');
+    connGroup.innerHTML = '';
+    nodeGroup.innerHTML = '';
+
+    // Draw connection lines first so nodes sit on top
+    let drawnLines = new Set();
+    for(let t in connections) {
+        let p1 = territoryCoords[t];
+        if(!p1) continue;
+        connections[t].forEach(n => {
+            let p2 = territoryCoords[n];
+            if(!p2) return;
+            let lineKey = [t, n].sort().join('--');
+            if(!drawnLines.has(lineKey)) {
+                drawnLines.add(lineKey);
+                let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", p1.x);
+                line.setAttribute("y1", p1.y);
+                line.setAttribute("x2", p2.x);
+                line.setAttribute("y2", p2.y);
+                line.setAttribute("stroke", "#334");
+                line.setAttribute("stroke-width", "1.5");
+                connGroup.appendChild(line);
+            }
         });
-        mapHtml += `</div>`;
     }
-    document.getElementById('map-display').innerHTML = mapHtml;
+
+    // Draw territory nodes
+    for(let t in territoryCoords) {
+        let coord = territoryCoords[t];
+        let data = gameState.territories[t];
+        let contInfo = continentsData[coord.continent];
+
+        let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "territory-node");
+
+        let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", coord.x);
+        circle.setAttribute("cy", coord.y);
+        circle.setAttribute("r", "16");
+        circle.setAttribute("fill", contInfo ? contInfo.color : "#444");
+        circle.setAttribute("stroke", data && data.owner === gameState.players[gameState.currentTurn] ? "#ffcc00" : "#ffffff");
+        circle.setAttribute("stroke-width", "2");
+
+        let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", coord.x);
+        text.setAttribute("y", coord.y + 4);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("fill", "#ffffff");
+        text.setAttribute("font-size", "10px");
+        text.setAttribute("font-weight", "bold");
+        text.textContent = data ? `${data.owner}:${data.armies}` : '';
+
+        let title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        title.textContent = `${t} (${coord.continent}) - Owner: [${data ? data.owner : 'None'}], Armies: ${data ? data.armies : 0}`;
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        g.appendChild(title);
+        nodeGroup.appendChild(g);
+    }
 }
 
 function executeReinforce() {
@@ -403,9 +515,7 @@ function executeAttack() {
     gameState.territories[from].armies -= atkLoss;
     gameState.territories[to].armies -= defLoss;
 
-    logMessage(`BATTLE: ${from} (Attacker) attacked ${to} (Defender).`);
-    logMessage(`Attacker rolls [${atkRolls.join(', ')}] vs Defender rolls [${defRolls.join(', ')}]`);
-    logMessage(`Result: Attacker lost ${atkLoss}, Defender lost ${defLoss} armies.`);
+    logMessage(`BATTLE: ${from} attacked ${to}. Attacker lost ${atkLoss}, Defender lost ${defLoss}.`);
 
     if(gameState.territories[to].armies <= 0) {
         let previousOwner = gameState.territories[to].owner;
@@ -416,12 +526,12 @@ function executeAttack() {
         gameState.territories[from].armies -= movingArmies;
         gameState.territories[to].armies = movingArmies;
 
-        logMessage(`CONQUERED! Player [${currentPlayer}] captured ${to} from [${previousOwner}] and moved ${movingArmies} armies in!`);
+        logMessage(`CONQUERED! [${currentPlayer}] captured ${to} from [${previousOwner}].`);
 
         let totalTerritories = Object.keys(gameState.territories).length;
         let playerTerritories = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer).length;
         if(playerTerritories === totalTerritories) {
-            alert(`Player [${currentPlayer}] has conquered the entire world and wins the game!`);
+            alert(`Player [${currentPlayer}] wins the game!`);
             location.reload();
         }
     }
@@ -449,7 +559,7 @@ function executeFortify() {
                 gameState.territories[to].armies += amt;
                 logMessage(`Fortified ${amt} armies from ${from} to ${to}.`);
             } else {
-                alert("Not enough armies to leave behind in source territory!");
+                alert("Not enough armies to leave behind!");
                 return;
             }
         } else {
