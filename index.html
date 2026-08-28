@@ -48,6 +48,20 @@
             padding: 15px;
             margin-bottom: 15px;
         }
+        .continent-box {
+            border-left: 3px solid #ffffff;
+            padding-left: 10px;
+            margin: 10px 0;
+            background: #161622;
+            padding: 10px;
+            border: 1px solid #444;
+        }
+        .territory-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px dashed #333333;
+        }
         .log-box {
             background-color: #08080a;
             border: 1px solid #333;
@@ -61,17 +75,16 @@
         /* SVG Map Styling */
         #risk-svg-map {
             width: 100%;
-            height: 500px;
-            background: #161622;
-            border: 1px solid #444;
+            height: 560px;
+            background: #0f0f17;
+            border: 2px solid #ffffff;
         }
         .territory-node {
             cursor: pointer;
-            transition: fill 0.2s;
+            transition: filter 0.2s;
         }
         .territory-node:hover {
-            stroke: #ffcc00;
-            stroke-width: 2px;
+            filter: brightness(1.3);
         }
     </style>
 </head>
@@ -108,12 +121,20 @@
 
         <div class="card">
             <h2>Interactive World Board</h2>
-            <p style="font-size: 12px; color: #aaa;">Nodes display Territory Name, Owner Initial, and Army Count.</p>
-            <svg id="risk-svg-map" viewBox="0 0 1000 500">
-                <!-- SVG map rendering container -->
+            <p style="font-size: 12px; color: #aaa;">Double borders outline continents. High-contrast labels show Territory Name, Owner, and Armies.</p>
+            <svg id="risk-svg-map" viewBox="0 0 1000 560">
+                <defs>
+                    <!-- Double border pattern/stroke trick using multiple groups -->
+                </defs>
+                <g id="map-continent-borders"></g>
                 <g id="map-connections"></g>
                 <g id="map-nodes"></g>
             </svg>
+        </div>
+
+        <div class="card">
+            <h2>Quick Reference Text List</h2>
+            <div id="map-display"></div>
         </div>
 
         <div class="card">
@@ -124,69 +145,62 @@
 
 <script>
 const continentsData = {
-    "North America": { bonus: 5, color: "#2c3e50", territories: ["Alaska", "Northwest Territory", "Greenland", "Alberta", "Ontario", "Quebec", "Western US", "Eastern US", "Central America"] },
-    "South America": { bonus: 2, color: "#27ae60", territories: ["Venezuela", "Peru", "Brazil", "Argentina"] },
-    "Europe": { bonus: 5, color: "#2980b9", territories: ["Iceland", "Great Britain", "Western Europe", "Northern Europe", "Southern Europe", "Scandinavia", "Ukraine"] },
-    "Africa": { bonus: 3, color: "#d35400", territories: ["North Africa", "Egypt", "East Africa", "Congo", "South Africa", "Madagascar"] },
-    "Asia": { bonus: 7, color: "#8e44ad", territories: ["Ural", "Siberia", "Yakutsk", "Kamchatka", "Afghanistan", "China", "India", "Middle East", "Japan", "Mongolia", "Irkutsk", "Siam"] },
-    "Australia": { bonus: 2, color: "#c0392b", territories: ["Indonesia", "New Guinea", "Western Australia", "Eastern Australia"] }
+    "North America": { bonus: 5, color: "#1f3a5f", border: "#4a90e2", box: {x: 40, y: 30, w: 290, h: 260}, territories: ["Alaska", "Northwest Territory", "Greenland", "Alberta", "Ontario", "Quebec", "Western US", "Eastern US", "Central America"] },
+    "South America": { bonus: 2, color: "#1b4d3e", border: "#27ae60", box: {x: 140, y: 310, w: 160, h: 210}, territories: ["Venezuela", "Peru", "Brazil", "Argentina"] },
+    "Europe": { bonus: 5, color: "#243b55", border: "#3498db", box: {x: 390, y: 40, w: 260, h: 230}, territories: ["Iceland", "Great Britain", "Western Europe", "Northern Europe", "Southern Europe", "Scandinavia", "Ukraine"] },
+    "Africa": { bonus: 3, color: "#5c3a21", border: "#e67e22", box: {x: 450, y: 280, w: 250, h: 250}, territories: ["North Africa", "Egypt", "East Africa", "Congo", "South Africa", "Madagascar"] },
+    "Asia": { bonus: 7, color: "#4a235a", border: "#9b59b6", box: {x: 610, y: 30, w: 360, h: 300}, territories: ["Ural", "Siberia", "Yakutsk", "Kamchatka", "Afghanistan", "China", "India", "Middle East", "Japan", "Mongolia", "Irkutsk", "Siam"] },
+    "Australia": { bonus: 2, color: "#641e16", border: "#e74c3c", box: {x: 790, y: 345, w: 180, h: 165}, territories: ["Indonesia", "New Guinea", "Western Australia", "Eastern Australia"] }
 };
 
-// Fixed coordinate map layout for visual nodes on the SVG grid
 const territoryCoords = {
-    // North America
     "Alaska": {x: 80, y: 70, continent: "North America"},
-    "Northwest Territory": {x: 150, y: 70, continent: "North America"},
-    "Greenland": {x: 290, y: 60, continent: "North America"},
-    "Alberta": {x: 130, y: 120, continent: "North America"},
-    "Ontario": {x: 200, y: 120, continent: "North America"},
-    "Quebec": {x: 270, y: 120, continent: "North America"},
-    "Western US": {x: 130, y: 170, continent: "North America"},
-    "Eastern US": {x: 200, y: 170, continent: "North America"},
-    "Central America": {x: 150, y: 230, continent: "North America"},
+    "Northwest Territory": {x: 170, y: 70, continent: "North America"},
+    "Greenland": {x: 280, y: 70, continent: "North America"},
+    "Alberta": {x: 120, y: 130, continent: "North America"},
+    "Ontario": {x: 200, y: 130, continent: "North America"},
+    "Quebec": {x: 270, y: 130, continent: "North America"},
+    "Western US": {x: 120, y: 190, continent: "North America"},
+    "Eastern US": {x: 210, y: 190, continent: "North America"},
+    "Central America": {x: 160, y: 250, continent: "North America"},
     
-    // South America
-    "Venezuela": {x: 200, y: 290, continent: "South America"},
-    "Peru": {x: 180, y: 360, continent: "South America"},
-    "Brazil": {x: 250, y: 340, continent: "South America"},
-    "Argentina": {x: 210, y: 430, continent: "South America"},
+    "Venezuela": {x: 180, y: 350, continent: "South America"},
+    "Peru": {x: 170, y: 430, continent: "South America"},
+    "Brazil": {x: 240, y: 400, continent: "South America"},
+    "Argentina": {x: 200, y: 480, continent: "South America"},
 
-    // Europe
-    "Iceland": {x: 430, y: 90, continent: "Europe"},
+    "Iceland": {x: 420, y: 90, continent: "Europe"},
     "Great Britain": {x: 430, y: 160, continent: "Europe"},
-    "Scandinavia": {x: 520, y: 80, continent: "Europe"},
-    "Western Europe": {x: 440, y: 220, continent: "Europe"},
+    "Scandinavia": {x: 520, y: 90, continent: "Europe"},
+    "Western Europe": {x: 430, y: 220, continent: "Europe"},
     "Northern Europe": {x: 510, y: 170, continent: "Europe"},
-    "Southern Europe": {x: 510, y: 230, continent: "Europe"},
-    "Ukraine": {x: 600, y: 130, continent: "Europe"},
+    "Southern Europe": {x: 520, y: 220, continent: "Europe"},
+    "Ukraine": {x: 600, y: 140, continent: "Europe"},
 
-    // Africa
-    "North Africa": {x: 490, y: 310, continent: "Africa"},
-    "Egypt": {x: 570, y: 290, continent: "Africa"},
-    "East Africa": {x: 610, y: 360, continent: "Africa"},
-    "Congo": {x: 550, y: 410, continent: "Africa"},
-    "South Africa": {x: 570, y: 470, continent: "Africa"},
-    "Madagascar": {x: 650, y: 440, continent: "Africa"},
+    "North Africa": {x: 490, y: 320, continent: "Africa"},
+    "Egypt": {x: 580, y: 310, continent: "Africa"},
+    "East Africa": {x: 610, y: 380, continent: "Africa"},
+    "Congo": {x: 550, y: 430, continent: "Africa"},
+    "South Africa": {x: 570, y: 490, continent: "Africa"},
+    "Madagascar": {x: 660, y: 460, continent: "Africa"},
 
-    // Asia
-    "Ural": {x: 690, y: 100, continent: "Asia"},
+    "Ural": {x: 680, y: 100, continent: "Asia"},
     "Siberia": {x: 770, y: 80, continent: "Asia"},
-    "Yakutsk": {x: 850, y: 60, continent: "Asia"},
-    "Kamchatka": {x: 930, y: 70, continent: "Asia"},
-    "Afghanistan": {x: 670, y: 180, continent: "Asia"},
-    "China": {x: 780, y: 200, continent: "Asia"},
-    "India": {x: 720, y: 270, continent: "Asia"},
+    "Yakutsk": {x: 860, y: 60, continent: "Asia"},
+    "Kamchatka": {x: 940, y: 70, continent: "Asia"},
+    "Afghanistan": {x: 680, y: 180, continent: "Asia"},
+    "China": {x: 790, y: 200, continent: "Asia"},
+    "India": {x: 720, y: 260, continent: "Asia"},
     "Middle East": {x: 630, y: 240, continent: "Asia"},
-    "Japan": {x: 910, y: 170, continent: "Asia"},
-    "Mongolia": {x: 830, y: 150, continent: "Asia"},
-    "Irkutsk": {x: 830, y: 110, continent: "Asia"},
-    "Siam": {x: 810, y: 280, continent: "Asia"},
+    "Japan": {x: 920, y: 170, continent: "Asia"},
+    "Mongolia": {x: 840, y: 150, continent: "Asia"},
+    "Irkutsk": {x: 840, y: 105, continent: "Asia"},
+    "Siam": {x: 820, y: 260, continent: "Asia"},
 
-    // Australia
-    "Indonesia": {x: 830, y: 370, continent: "Australia"},
-    "New Guinea": {x: 920, y: 360, continent: "Australia"},
-    "Western Australia": {x: 860, y: 450, continent: "Australia"},
-    "Eastern Australia": {x: 930, y: 440, continent: "Australia"}
+    "Indonesia": {x: 820, y: 385, continent: "Australia"},
+    "New Guinea": {x: 930, y: 385, continent: "Australia"},
+    "Western Australia": {x: 850, y: 470, continent: "Australia"},
+    "Eastern Australia": {x: 930, y: 470, continent: "Australia"}
 };
 
 const connections = {
@@ -377,15 +391,61 @@ function updateUI() {
     }
 
     renderSvgMap();
+    renderTextList();
 }
 
 function renderSvgMap() {
+    let borderGroup = document.getElementById('map-continent-borders');
     let connGroup = document.getElementById('map-connections');
     let nodeGroup = document.getElementById('map-nodes');
+    
+    borderGroup.innerHTML = '';
     connGroup.innerHTML = '';
     nodeGroup.innerHTML = '';
 
-    // Draw connection lines first so nodes sit on top
+    // 1. Render Continent Double Borders / Background Boxes
+    for(let cont in continentsData) {
+        let b = continentsData[cont].box;
+        let color = continentsData[cont].border;
+
+        // Outer container border
+        let rectOuter = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rectOuter.setAttribute("x", b.x);
+        rectOuter.setAttribute("y", b.y);
+        rectOuter.setAttribute("width", b.w);
+        rectOuter.setAttribute("height", b.h);
+        rectOuter.setAttribute("rx", "8");
+        rectOuter.setAttribute("fill", continentsData[cont].color);
+        rectOuter.setAttribute("stroke", color);
+        rectOuter.setAttribute("stroke-width", "3");
+        borderGroup.appendChild(rectOuter);
+
+        // Inner double-border layer for continent separation
+        let rectInner = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rectInner.setAttribute("x", b.x + 5);
+        rectInner.setAttribute("y", b.y + 5);
+        rectInner.setAttribute("width", b.w - 10);
+        rectInner.setAttribute("height", b.h - 10);
+        rectInner.setAttribute("rx", "5");
+        rectInner.setAttribute("fill", "none");
+        rectInner.setAttribute("stroke", "#ffffff");
+        rectInner.setAttribute("stroke-width", "1");
+        rectInner.setAttribute("stroke-dasharray", "4,4");
+        borderGroup.appendChild(rectInner);
+
+        // Continent Name Label
+        let label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("x", b.x + 12);
+        label.setAttribute("y", b.y + 20);
+        label.setAttribute("fill", "#ffffff");
+        label.setAttribute("font-size", "11px");
+        label.setAttribute("font-weight", "bold");
+        label.setAttribute("opacity", "0.8");
+        label.textContent = `${cont.toUpperCase()} (+${continentsData[cont].bonus})`;
+        borderGroup.appendChild(label);
+    }
+
+    // 2. Render Connections (with high-contrast white connection lines)
     let drawnLines = new Set();
     for(let t in connections) {
         let p1 = territoryCoords[t];
@@ -396,52 +456,97 @@ function renderSvgMap() {
             let lineKey = [t, n].sort().join('--');
             if(!drawnLines.has(lineKey)) {
                 drawnLines.add(lineKey);
+                
+                // Outer glow/contrast line for ocean/inter-continent crossings
+                let lineBg = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                lineBg.setAttribute("x1", p1.x);
+                lineBg.setAttribute("y1", p1.y);
+                lineBg.setAttribute("x2", p2.x);
+                lineBg.setAttribute("y2", p2.y);
+                lineBg.setAttribute("stroke", "#000000");
+                lineBg.setAttribute("stroke-width", "4");
+                connGroup.appendChild(lineBg);
+
+                // Bright white connection line
                 let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 line.setAttribute("x1", p1.x);
                 line.setAttribute("y1", p1.y);
                 line.setAttribute("x2", p2.x);
                 line.setAttribute("y2", p2.y);
-                line.setAttribute("stroke", "#334");
+                line.setAttribute("stroke", "#ffffff");
                 line.setAttribute("stroke-width", "1.5");
+                if(p1.continent !== p2.continent) {
+                    line.setAttribute("stroke-dasharray", "3,3"); // Dashed line for ocean/inter-continental links
+                }
                 connGroup.appendChild(line);
             }
         });
     }
 
-    // Draw territory nodes
+    // 3. Render Territory Nodes (with white borders, high-contrast labels, and names inside/near box)
     for(let t in territoryCoords) {
         let coord = territoryCoords[t];
         let data = gameState.territories[t];
-        let contInfo = continentsData[coord.continent];
+        let isCurrentPlayer = data && data.owner === gameState.players[gameState.currentTurn];
 
         let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.setAttribute("class", "territory-node");
 
-        let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", coord.x);
-        circle.setAttribute("cy", coord.y);
-        circle.setAttribute("r", "16");
-        circle.setAttribute("fill", contInfo ? contInfo.color : "#444");
-        circle.setAttribute("stroke", data && data.owner === gameState.players[gameState.currentTurn] ? "#ffcc00" : "#ffffff");
-        circle.setAttribute("stroke-width", "2");
+        // Node background pill/circle with thick white border
+        let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", coord.x - 32);
+        rect.setAttribute("y", coord.y - 15);
+        rect.setAttribute("width", "64");
+        rect.setAttribute("height", "30");
+        rect.setAttribute("rx", "6");
+        rect.setAttribute("fill", "#111118");
+        rect.setAttribute("stroke", isCurrentPlayer ? "#ffcc00" : "#ffffff");
+        rect.setAttribute("stroke-width", isCurrentPlayer ? "2.5" : "1.5");
 
-        let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", coord.x);
-        text.setAttribute("y", coord.y + 4);
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("fill", "#ffffff");
-        text.setAttribute("font-size", "10px");
-        text.setAttribute("font-weight", "bold");
-        text.textContent = data ? `${data.owner}:${data.armies}` : '';
+        // Territory Name (High contrast white)
+        let nameText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        nameText.setAttribute("x", coord.x);
+        nameText.setAttribute("y", coord.y - 4);
+        nameText.setAttribute("text-anchor", "middle");
+        nameText.setAttribute("fill", "#ffffff");
+        nameText.setAttribute("font-size", "9px");
+        nameText.setAttribute("font-weight", "bold");
+        // Shorten long names for the node display if needed
+        let displayName = t.length > 10 ? t.substring(0, 9) + "." : t;
+        nameText.textContent = displayName;
+
+        // Owner & Army Count
+        let infoText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        infoText.setAttribute("x", coord.x);
+        infoText.setAttribute("y", coord.y + 9);
+        infoText.setAttribute("text-anchor", "middle");
+        infoText.setAttribute("fill", "#00ffcc");
+        infoText.setAttribute("font-size", "10px");
+        infoText.setAttribute("font-weight", "bold");
+        infoText.textContent = data ? `[${data.owner}]: ${data.armies}` : '';
 
         let title = document.createElementNS("http://www.w3.org/2000/svg", "title");
         title.textContent = `${t} (${coord.continent}) - Owner: [${data ? data.owner : 'None'}], Armies: ${data ? data.armies : 0}`;
 
-        g.appendChild(circle);
-        g.appendChild(text);
+        g.appendChild(rect);
+        g.appendChild(nameText);
+        g.appendChild(infoText);
         g.appendChild(title);
         nodeGroup.appendChild(g);
     }
+}
+
+function renderTextList() {
+    let mapHtml = '';
+    for(let cont in continentsData) {
+        mapHtml += `<div class="continent-box"><h3>${cont} (Bonus: +${continentsData[cont].bonus})</h3>`;
+        continentsData[cont].territories.forEach(t => {
+            let data = gameState.territories[t];
+            mapHtml += `<div class="territory-row"><span><strong>${t}</strong></span><span>Owner: [${data.owner}] | Armies: ${data.armies}</span></div>`;
+        });
+        mapHtml += `</div>`;
+    }
+    document.getElementById('map-display').innerHTML = mapHtml;
 }
 
 function executeReinforce() {
