@@ -1,8 +1,8 @@
-Reproduction production production there's been a lot of problems group production<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width over the year and a half Reproduction hotspot few months ago, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Text Risk - Global Domination</title>
     <style>
         body {
@@ -175,8 +175,8 @@ const connections = {
 let gameState = {
     players: [],
     currentTurn: 0,
-    phase: 'reinforce', // reinforce, attack, fortify
-    territories: {}, // name -> { owner: initial, armies: count }
+    phase: 'reinforce',
+    territories: {},
     reinforcementsLeft: 0
 };
 
@@ -199,10 +199,10 @@ function startGame() {
         gameState.players.push(val);
     }
 
-    // Initialize Territories randomly among players
+    // FIX: Access .territories array properly instead of pushing the whole continent object
     let allTerritories = [];
     for(let cont in continentsData) {
-        allTerritories.push(...continentsData[cont]);
+        allTerritories.push(...continentsData[cont].territories);
     }
     
     // Shuffle territories
@@ -247,13 +247,12 @@ function startTurn() {
     let currentPlayer = gameState.players[gameState.currentTurn];
     gameState.phase = 'reinforce';
 
-    // Calculate reinforcements: territories / 3 (min 3) + continent bonuses
     let ownedTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer);
     let countBonus = Math.max(3, Math.floor(ownedTerrs.length / 3));
 
     let continentBonus = 0;
     for(let cont in continentsData) {
-        let fullCont = continentsData[cont].every(t => gameState.territories[t].owner === currentPlayer);
+        let fullCont = continentsData[cont].territories.every(t => gameState.territories[t].owner === currentPlayer);
         if(fullCont) {
             continentBonus += continentsData[cont].bonus;
         }
@@ -299,7 +298,6 @@ function updateUI() {
             <button onclick="executeAttack()">Launch Attack</button><br><br>
             <button onclick="endAttackPhase()">Finish Attacks / Go to Fortify</button>
         `;
-        // Trigger population of targets for default selection
         setTimeout(updateAttackTargets, 50);
     } else if(gameState.phase === 'fortify') {
         let myTerrs = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer && gameState.territories[t].armies > 1);
@@ -380,7 +378,6 @@ function executeAttack() {
         return;
     }
 
-    // Simple automated dice resolution for speed & accessibility
     let atkDice = Math.min(3, attackerArmies - 1);
     let defDice = Math.min(2, defenderArmies);
 
@@ -410,20 +407,17 @@ function executeAttack() {
     logMessage(`Attacker rolls [${atkRolls.join(', ')}] vs Defender rolls [${defRolls.join(', ')}]`);
     logMessage(`Result: Attacker lost ${atkLoss}, Defender lost ${defLoss} armies.`);
 
-    // Check if territory captured
     if(gameState.territories[to].armies <= 0) {
         let previousOwner = gameState.territories[to].owner;
         let currentPlayer = gameState.players[gameState.currentTurn];
         gameState.territories[to].owner = currentPlayer;
         
-        // Move half attacking stack over
         let movingArmies = Math.floor(gameState.territories[from].armies / 2);
         gameState.territories[from].armies -= movingArmies;
         gameState.territories[to].armies = movingArmies;
 
         logMessage(`CONQUERED! Player [${currentPlayer}] captured ${to} from [${previousOwner}] and moved ${movingArmies} armies in!`);
 
-        // Check win condition
         let totalTerritories = Object.keys(gameState.territories).length;
         let playerTerritories = Object.keys(gameState.territories).filter(t => gameState.territories[t].owner === currentPlayer).length;
         if(playerTerritories === totalTerritories) {
@@ -449,7 +443,6 @@ function executeFortify() {
     let currentPlayer = gameState.players[gameState.currentTurn];
 
     if(from && to && gameState.territories[from].owner === currentPlayer && gameState.territories[to].owner === currentPlayer) {
-        // Simple check if they are in connections list
         if(connections[from] && connections[from].includes(to)) {
             if(gameState.territories[from].armies > amt) {
                 gameState.territories[from].armies -= amt;
